@@ -1,0 +1,15 @@
+# Compiled Binaries & Object Files
+*.o
+*.obj
+*.exe
+ManageNoteSystem/ManageNoteSystem.exe
+ManageNoteSystem/bin/
+ManageNoteSystem/obj/
+
+# Local database file
+# (uncomment if you want to keep the local notes_db.txt out of Git)
+# ManageNoteSystem/notes_db.txt
+
+# VSCode temporary C++ Intellisense files
+.vscode/ipch/
+.vscode/.browse.vc.db
