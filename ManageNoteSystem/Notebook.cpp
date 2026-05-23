@@ -48,3 +48,25 @@ Note* Notebook::findNote(int noteId) {
     }
     return nullptr;
 }
+
+// Archive a note (move to trash)
+bool Notebook::archiveNote(int noteId) {
+    for (auto &note : notes) {
+        if (note.getId() == noteId) {
+            note.setIsArchived(true);
+            return true;
+        }
+    }
+    return false;
+}
+
+// Restore a note from trash
+bool Notebook::restoreNote(int noteId) {
+    for (auto &note : notes) {
+        if (note.getId() == noteId) {
+            note.setIsArchived(false);
+            return true;
+        }
+    }
+    return false;
+}

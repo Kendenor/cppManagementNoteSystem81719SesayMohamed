@@ -4,6 +4,8 @@
 #include <iostream>
 #include <algorithm>
 #include <cctype>
+#include <map>
+#include <iomanip>
 
 using namespace std;
 
@@ -109,7 +111,9 @@ bool NoteService::saveToFile(const string& filepath) {
     for (auto& nb : notebooks) {
         for (const auto& note : nb.getNotes()) {
             file << "NOTE_META:" << nb.getName() << "|" << note.getId() << "|" 
-                 << (note.getIsPinned() ? "1" : "0") << "|" << note.getCreatedAt() << "|";
+                 << (note.getIsPinned() ? "1" : "0") << "|" 
+                 << (note.getIsArchived() ? "1" : "0") << "|" 
+                 << note.getCreatedAt() << "|";
             
             // Serialize tags
             const auto& t = note.getTags();
@@ -186,8 +190,18 @@ bool NoteService::loadFromFile(const string& filepath) {
                         string nbName = tokens[0];
                         int id = stoi(tokens[1]);
                         bool isPinned = (tokens[2] == "1");
-                        string createdAt = tokens[3];
-                        string tagsJoined = tokens[4];
+                        bool isArchived = false;
+                        string createdAt;
+                        string tagsJoined;
+                        
+                        if (tokens.size() == 5) {
+                            createdAt = tokens[3];
+                            tagsJoined = tokens[4];
+                        } else {
+                            isArchived = (tokens[3] == "1");
+                            createdAt = tokens[4];
+                            tagsJoined = tokens[5];
+                        }
                         
                         vector<string> tags;
                         size_t tPos = 0;
@@ -213,7 +227,7 @@ bool NoteService::loadFromFile(const string& filepath) {
                             first = false;
                         }
                         
-                        Note loadedNote(id, title, content, createdAt, tags, isPinned);
+                        Note loadedNote(id, title, content, createdAt, tags, isPinned, isArchived);
                         Notebook* nb = findNotebook(nbName);
                         if (nb) {
                             nb->addNote(loadedNote);
@@ -229,12 +243,13 @@ bool NoteService::loadFromFile(const string& filepath) {
 }
 
 // Search notes by title or content matching query
-vector<Note*> NoteService::searchNotes(const string& query) {
+vector<Note*> NoteService::searchNotes(const string& query, bool includeArchived) {
     vector<Note*> results;
     string lowQuery = toLower(query);
     
     auto searchInNotebook = [&](Notebook& nb) {
         for (auto& note : nb.getNotes()) {
+            if (!includeArchived && note.getIsArchived()) continue;
             string lowTitle = toLower(note.getTitle());
             string lowContent = toLower(note.getContent());
             if (lowTitle.find(lowQuery) != string::npos || lowContent.find(lowQuery) != string::npos) {
@@ -260,12 +275,13 @@ vector<Note*> NoteService::searchNotes(const string& query) {
 }
 
 // Filter notes containing a specific tag
-vector<Note*> NoteService::filterByTag(const string& tag) {
+vector<Note*> NoteService::filterByTag(const string& tag, bool includeArchived) {
     vector<Note*> results;
     string lowTag = toLower(tag);
     
     auto filterInNotebook = [&](Notebook& nb) {
         for (auto& note : nb.getNotes()) {
+            if (!includeArchived && note.getIsArchived()) continue;
             for (const auto& t : note.getTags()) {
                 if (toLower(t) == lowTag) {
                     results.push_back(&note);
@@ -313,4 +329,190 @@ Notebook* NoteService::findNotebook(const string& folderName) {
         }
     }
     return nullptr;
+}
+
+// Export a note to a formatted text file
+bool NoteService::exportNoteToTxt(int noteId, const string& folderName) {
+    Notebook* nb = findNotebook(folderName);
+    if (!nb) return false;
+    
+    Note* note = nb->findNote(noteId);
+    if (!note) return false;
+    
+    // Sanitise title for filename
+    string safeTitle = note->getTitle();
+    for (char& c : safeTitle) {
+        if (c == ' ' || c == '/' || c == '\\' || c == ':' || c == '*' || c == '?' || c == '"' || c == '<' || c == '>' || c == '|') {
+            c = '_';
+        }
+    }
+    
+    string filename = "Note_Export_" + to_string(noteId) + "_" + safeTitle + ".txt";
+    ofstream file(filename);
+    if (!file.is_open()) return false;
+    
+    string divider = "============================================================";
+    file << "+" << divider << "+\n";
+    file << "|          NOTEIFY - EXPORTED NOTE DOCUMENT                 |\n";
+    file << "+" << divider << "+\n";
+    file << "| Note ID  : " << noteId << "\n";
+    file << "| Notebook : " << folderName << "\n";
+    file << "| Title    : " << note->getTitle() << "\n";
+    file << "| Created  : " << note->getCreatedAt() << "\n";
+    file << "| Status   : " << (note->getIsPinned() ? "PINNED" : "Normal") << (note->getIsArchived() ? " [ARCHIVED]" : "") << "\n";
+    
+    // Tags
+    file << "| Tags     : ";
+    const auto& tags = note->getTags();
+    if (tags.empty()) {
+        file << "(None)";
+    } else {
+        for (size_t i = 0; i < tags.size(); ++i) {
+            file << tags[i];
+            if (i < tags.size() - 1) file << ", ";
+        }
+    }
+    file << "\n";
+    file << "+" << divider << "+\n\n";
+    
+    // Content
+    file << note->getContent() << "\n\n";
+    file << "+" << divider << "+\n";
+    
+    // Word/Char stats
+    int charCount = note->getContent().length();
+    istringstream ss(note->getContent());
+    string w;
+    int wordCount = 0;
+    while (ss >> w) wordCount++;
+    file << "| Words: " << wordCount << " | Characters: " << charCount << "\n";
+    file << "+" << divider << "+\n";
+    file << "| Exported by NOTEIFY C++ Premium Note Manager               |\n";
+    file << "+" << divider << "+\n";
+    
+    file.close();
+    return true;
+}
+
+// Analytics and Statistics Dashboard
+void NoteService::displayAnalytics() const {
+    // ANSI colors
+    string cyan    = "\033[36m";
+    string green   = "\033[32m";
+    string yellow  = "\033[1;33m";
+    string magenta = "\033[35m";
+    string red     = "\033[31m";
+    string reset   = "\033[0m";
+    string bold    = "\033[1m";
+    
+    string div = "============================================================";
+    
+    cout << "\n" << cyan << "+" << div << "+" << reset << "\n";
+    cout << cyan << "|" << reset << bold << "         ★  NOTEIFY SYSTEM ANALYTICS DASHBOARD  ★        " << reset << cyan << "|" << reset << "\n";
+    cout << cyan << "+" << div << "+" << reset << "\n";
+    
+    int totalNotes = 0, activeNotes = 0, archivedNotes = 0;
+    int pinnedNotes = 0, totalWords = 0, totalChars = 0;
+    
+    string mostActiveNotebook = "";
+    int maxNotebookNotes = 0;
+    
+    map<string, int> tagFrequency;
+    
+    for (const auto& nb : notebooks) {
+        int nbActiveCount = 0;
+        for (const auto& note : nb.getNotes()) {
+            totalNotes++;
+            totalChars += note.getContent().length();
+            
+            // Word count
+            istringstream iss(note.getContent());
+            string w;
+            while (iss >> w) totalWords++;
+            
+            if (note.getIsArchived()) {
+                archivedNotes++;
+            } else {
+                activeNotes++;
+                nbActiveCount++;
+            }
+            if (note.getIsPinned()) pinnedNotes++;
+            
+            // Tag frequency
+            for (const auto& tag : note.getTags()) {
+                tagFrequency[tag]++;
+            }
+        }
+        if (nbActiveCount > maxNotebookNotes) {
+            maxNotebookNotes = nbActiveCount;
+            mostActiveNotebook = nb.getName();
+        }
+    }
+    
+    // Calculate averages
+    double avgWords = (totalNotes > 0) ? (double)totalWords / totalNotes : 0.0;
+    double avgChars = (totalNotes > 0) ? (double)totalChars / totalNotes : 0.0;
+    
+    // Find most frequent tag
+    string topTag = "(None)";
+    int topTagCount = 0;
+    for (const auto& kv : tagFrequency) {
+        if (kv.second > topTagCount) {
+            topTagCount = kv.second;
+            topTag = kv.first;
+        }
+    }
+    
+    // Print stats
+    auto printRow = [&](const string& label, const string& value, const string& color) {
+        string row = " " + label + value;
+        int padLen = 60 - (int)row.length() - 2;
+        if (padLen < 0) padLen = 0;
+        cout << cyan << "| " << reset << color << label << reset << value << string(padLen, ' ') << cyan << " |" << reset << "\n";
+    };
+    
+    auto printLabel = [&](const string& label, const string& color) {
+        int padLen = 60 - (int)label.length() - 2;
+        if (padLen < 0) padLen = 0;
+        cout << cyan << "|" << reset << " " << color << bold << label << reset << string(padLen, ' ') << cyan << " |" << reset << "\n";
+    };
+    
+    printLabel(" >> NOTE OVERVIEW", yellow);
+    cout << cyan << "|" << string(58, '-') << "|" << reset << "\n";
+    printRow(" Total Notebooks:    ", to_string(notebooks.size()), green);
+    printRow(" Total Notes:        ", to_string(totalNotes), green);
+    printRow(" Active Notes:       ", to_string(activeNotes), green);
+    printRow(" Archived (Trash):   ", to_string(archivedNotes), red);
+    printRow(" Pinned Notes:       ", to_string(pinnedNotes), yellow);
+    
+    cout << cyan << "|" << string(58, '-') << "|" << reset << "\n";
+    printLabel(" >> CONTENT STATISTICS", yellow);
+    cout << cyan << "|" << string(58, '-') << "|" << reset << "\n";
+    
+    ostringstream avgWStr, avgCStr;
+    avgWStr << fixed << setprecision(1) << avgWords;
+    avgCStr << fixed << setprecision(1) << avgChars;
+    
+    printRow(" Avg Words/Note:     ", avgWStr.str(), magenta);
+    printRow(" Avg Chars/Note:     ", avgCStr.str(), magenta);
+    printRow(" Total Words:        ", to_string(totalWords), magenta);
+    printRow(" Total Characters:   ", to_string(totalChars), magenta);
+    
+    cout << cyan << "|" << string(58, '-') << "|" << reset << "\n";
+    printLabel(" >> TOP INSIGHTS", yellow);
+    cout << cyan << "|" << string(58, '-') << "|" << reset << "\n";
+    
+    if (mostActiveNotebook.empty()) mostActiveNotebook = "(None)";
+    printRow(" Most Active Folder: ", mostActiveNotebook + " (" + to_string(maxNotebookNotes) + " notes)", green);
+    printRow(" Most Used Tag:      ", topTag + " (x" + to_string(topTagCount) + ")", yellow);
+    
+    if (!tagFrequency.empty()) {
+        cout << cyan << "|" << string(58, '-') << "|" << reset << "\n";
+        printLabel(" >> ALL TAGS", yellow);
+        for (const auto& kv : tagFrequency) {
+            printRow("   #" + kv.first + "  ", "x" + to_string(kv.second), magenta);
+        }
+    }
+    
+    cout << cyan << "+" << div << "+" << reset << "\n\n";
 }

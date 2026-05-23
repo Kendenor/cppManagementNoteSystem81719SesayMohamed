@@ -1,11 +1,13 @@
 NEXT_ID:5
-USERS:2
+USERS:3
 Pinto|CIF001
 Tester|CIF999
-NOTEBOOKS:2
+sesay|CIF002
+NOTEBOOKS:3
 CompSci
 University
-NOTES:3
+Merchant of venice
+NOTES:2
 NOTE_META:CompSci|1|0|2026-05-18 01:03:35|college,compsci
 C++ Project Presentation
 Remember to explain classes, vectors, and file IO!
@@ -14,8 +16,4 @@ Also show the custom word wrapping.
 NOTE_META:University|2|1|2026-05-18 01:16:43|college,cpp,oop
 C++ Class Basics
 Object-oriented programming focuses on classes, pointers, and memory control.
-[END_NOTE]
-NOTE_META:University|4|0|2026-05-18 01:16:43|personal
-Weekend Tasks
-Go to the gym, buy groceries, and wash the car.
 [END_NOTE]

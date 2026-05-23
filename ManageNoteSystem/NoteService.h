@@ -31,8 +31,12 @@ public:
     bool loadFromFile(const string& filepath);
     
     // Advanced Note Queries (across all notebooks if none selected, or within current notebook)
-    vector<Note*> searchNotes(const string& query);
-    vector<Note*> filterByTag(const string& tag);
+    vector<Note*> searchNotes(const string& query, bool includeArchived = false);
+    vector<Note*> filterByTag(const string& tag, bool includeArchived = false);
+    
+    // Premium Features
+    bool exportNoteToTxt(int noteId, const string& folderName);
+    void displayAnalytics() const;
     
     // ID Generator
     int getNextNoteId();

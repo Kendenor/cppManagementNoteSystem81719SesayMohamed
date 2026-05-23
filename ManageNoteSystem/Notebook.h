@@ -25,6 +25,8 @@ public:
     void addNote(const Note& note);
     bool deleteNote(int noteId);
     Note* findNote(int noteId);
+    bool archiveNote(int noteId);
+    bool restoreNote(int noteId);
     
 private:
     string name;
